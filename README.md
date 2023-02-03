@@ -4,6 +4,10 @@ The presence of a contact between two residues in macromolecular systems, such a
 
 This is a command line program for linux systems and depends on MDTraj simulation analysis package (https://www.mdtraj.org/): mdtraj.load() is used for trajectory/topology inputs and inter-atomic distances are calculated using mdtraj.distance().
 
+Installation:
+
+pip install trajcontacts
+
 After installation, type 'trajcontacts -h' for detailed options.
 
 A simple 'trajcontacts -p topologyfile -f coordinatefile -n 10' will run the program on 10 processors and extract contacts with 4.5 angstrom cutoff. Both 'topologyfile' and 'coordinatefile' should be specified as same for extracting contactd from a PDB file.
