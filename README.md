@@ -6,7 +6,7 @@ This is a command line program for linux systems and depends on MDTraj simulatio
 
 Installation:
 
-pip install trajcontacts
+**pip install trajcontacts**
 
 After installation, type 'trajcontacts -h' for detailed options.
 
