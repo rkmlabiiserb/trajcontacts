@@ -40,4 +40,4 @@ Madhu, Midhun K., Kunal Shewani, and Rajesh K. Murarka. "Biased Signaling in Mut
 
 **Copyright:**
 
-Copyright belongs to the Computational Biophysics and Soft Matter Group, IISER Bhopal. Visit their website at https://home.iiserb.ac.in/~rkm/.
+Copyright belongs to the Computational Biophysics and Soft Matter Group, IISER Bhopal. Visit our website: https://home.iiserb.ac.in/~rkm/.
