@@ -26,7 +26,7 @@ trajcontacts -p topologyfile -f file_containing_names/paths_to_coordinate_files 
 
 will execute the program on 10 processors and extract contacts with a 4.5 Ångstrom cutoff. Both 'topologyfile' (specified in the command line) and 'coordinatefile' (in the file containing names of coordinate files) should be specified as the same for extracting contacts from a PDB file.
 
-**Example:**
+## Example
 
 trajcontacts -p 3sn6.pdb -f traj.dat -n 10
 
