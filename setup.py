@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='trajcontacts',
-    version='0.1.3',
+    version='1.0.0',
     scripts=['trajcontacts'] ,
     author='Midhun K Madhu',
     author_email='midhunkmadhu14@gmail.com',

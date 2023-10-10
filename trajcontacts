@@ -14,8 +14,8 @@ def parse():
     parser.add_option("-p", "--parmtop", type="str",
                       help="parameter/topology file [compulsory argument 1] (.prmtop/.psf/.gro/.pdb or any topology format compatible with MDTRAJ python module)",
                       dest="p", default='nil')
-    parser.add_option("-f", "--trajectory", type="str",
-                      help="coordinates/trajectory file [compulsory argument 2] (.nc/.xtc/.dcd/.gro/.pdb any coordinate format compatible with MDTRAJ python module)",
+    parser.add_option("-f", "--trajectoriesfilename", type="str",
+                      help="file containing names/paths of coordinates/trajectory files [compulsory argument 2] (.nc/.xtc/.dcd/.gro/.pdb any coordinate format compatible with MDTRAJ python module). Make a file named 'traj.dat' and write trajectory name(s)/path(s) to it, line by line'. Use traj.dat as argument for -f",
                       dest="f", default='nil')
 
     group = OptionGroup(parser, "Suggested Options",
@@ -24,9 +24,18 @@ def parse():
     group.add_option("-n", "--nproc", type="int",
                       help="number of processors to run the script (default: 1)",
                       dest="n", default=1)
+    group.add_option("-m", "--contactmatrixtype", type="str",
+                      help="Type of contact matrix: 'cont' for continuous, 'norm' for normal, and 'both' for both (default: norm)",
+                      dest="m", default='norm')
     group.add_option("-a", "--cutpercent", type="float",
                       help="cut-off for percentage of frames for defining contacts [percentage without % symbol] (default: 75)",
                       dest="a", default=75)
+    group.add_option("-d", "--dcut-offdist", type="float",
+                      help="maximum heavy atom cut-off distance for calculating contacts in the case of m = 'norm' or 'both' [in angstrom] (default: 8.0)",
+                      dest="d", default=8.0)
+    group.add_option("-k", "--dcutkval", type="float",
+                      help="Value of function K for d for calculating sigma factor (default: 0.00001; this is prefered)",
+                      dest="k", default=0.00001)
     group.add_option("-c", "--cutfoffdist", type="float",
                       help="heavy atom cut-off distance for calculating contacts [in angstrom] (default: 4.5)",
                       dest="c", default=4.5)
@@ -36,9 +45,12 @@ def parse():
     group.add_option("-y", "--contactmatrixframes", type="str",
                       help="output file of matrix with number of frames in cotact (default: contactMatrixResFrames.dat)",
                       dest="y", default='contactMatrixResFrames.dat')
-    group.add_option("-z", "--contactmatrixfraction", type="str",
-                      help="output file of matrix with number of frames in contcat [weighted adjacency matrix] (default: contactMatrixFraction.dat)",
-                      dest="z", default='contactMatrixFraction.dat')
+    group.add_option("-z", "--cmatfract_norm", type="str",
+                      help="output file of matrix with fraction of frames in contact [weighted adjacency matrix] (default: contactMatrixFraction_normal.dat)",
+                      dest="z", default='contactMatrixFraction_normal.dat')
+    group.add_option("-w", "--cmatfract_cont", type="str",
+                      help="output file of matrix with number of frames in contact [weighted adjacency matrix] (default: contactMatrixFraction_continuous.dat)",
+                      dest="w", default='contactMatrixFraction_continuous.dat')
     group.add_option("-o", "--contact", type="str",
                       help="output file of matrix satifying given percent cutoff [unweighted adjacency matrix] (default: contact.dat)",
                       dest="o", default='contact.dat')
@@ -63,10 +75,15 @@ def pairs_dist(topo,traj,res1,res2):
     return all_pairdist
 
 """
-cut_dist() look for all pairwise distances within a cut off and count the number
-of contact satidfying the conditon
+cut_dist look for all pairwise distances within a cut off and count the number
+of contact satisfying the conditon
 """
-def cut_dist(topo,traj,res1,res2, cut):
+
+def calc_switchFunctionK(dij, sigma, cut):
+    K = np.where(dij <= cut, 1, np.exp(-((dij**2) / (2 * sigma**2))) / np.exp(-((cut**2) / (2 * sigma**2))))
+    return np.around(K, 4)
+
+def cut_dist_norm(topo,traj,res1,res2, cut):
     all_pairdist = pairs_dist(topo,traj,res1,res2)
     each_frame_min = np.min(all_pairdist, axis = 1)
     negtive_each_frame_min = -1*each_frame_min
@@ -74,79 +91,171 @@ def cut_dist(topo,traj,res1,res2, cut):
     binary = np.digitize(negtive_each_frame_min,bins=[negative_cut])
     f = np.sum(binary)
     return f
+
+def cut_dist_cont(topo,traj,res1,res2,cut,dcut,Kdcut):
+    all_pairdist = pairs_dist(topo,traj,res1,res2) # has dimention of number of frames X all inter heavy atom pairs
+    each_frame_min = np.min(all_pairdist, axis = 1) # has dimention of number of frames
+    sigma = np.sqrt(((cut**2)-(dcut**2))/(2*np.log(Kdcut)))
+    continous_binary = calc_switchFunctionK(each_frame_min, sigma, cut)
+    f = np.sum(continous_binary)
+    return f
          
-def iloop(i,topo,traj,upto,n_apart,Norm,cut):
+def iloop1(i,topo,traj,upto,n_apart,Norm_Nframes,cut):
         res1 = topo.residue(i)
         j = (i+n_apart)
         out = []
         while j < upto:
             res2 = topo.residue(j)
-            f = cut_dist(topo,traj,res1,res2,cut)
+            f = cut_dist_norm(topo,traj,res1,res2,cut)
             res_i_index = i
             res_j_index = j
             out.append([res_i_index,res1,res_j_index,res2,f])
             j+=1
         return out
 
-"""
-find_weight() considers a pair of residues at a time, and call cut_dist
-then identify al contacts that satify 70% criteria
-"""
-def find_weight(topo,traj,upto,n_apart,nproc,cut,Norm):
+def iloop2(i,topo,traj,upto,n_apart,Norm_Nframes,cut,dcut,Kdcut):
+        res1 = topo.residue(i)
+        j = (i+n_apart)
+        out = []
+        while j < upto:
+            res2 = topo.residue(j)
+            f = cut_dist_cont(topo,traj,res1,res2,cut,dcut,Kdcut)
+            res_i_index = i
+            res_j_index = j
+            out.append([res_i_index,res1,res_j_index,res2,f])
+            j+=1
+        return out
+
+def find_weight(topo,traj,upto,n_apart,nproc,cut,Norm_Nframes,typemat,dcut,Kdcut):
     pool = mp.Pool(nproc)
-    results = []
-    results = pool.starmap(iloop, [(i,topo,traj,upto,n_apart,Norm,cut) for i in range(0, (upto-n_apart))])
+
+    if typemat == 'norm':
+        results = []
+        results = pool.starmap(iloop1, [(i,topo,traj,upto,n_apart,Norm_Nframes,cut) for i in range(0, (upto-n_apart))])
+
+    if typemat == 'cont':
+        results = []
+        results = pool.starmap(iloop2, [(i,topo,traj,upto,n_apart,Norm_Nframes,cut,dcut,Kdcut) for i in range(0, (upto-n_apart))])
+
+    if typemat == 'both':
+        results1 = []
+        results2 = []
+        results1 = pool.starmap(iloop1, [(i,topo,traj,upto,n_apart,Norm_Nframes,cut) for i in range(0, (upto-n_apart))])
+        results2 = pool.starmap(iloop2, [(i,topo,traj,upto,n_apart,Norm_Nframes,cut,dcut,Kdcut) for i in range(0, (upto-n_apart))])
+        results = [results1, results2]
+ 
     return results
+
+
+import numpy as np
+import mdtraj as md
 
 def main():
     options = parse()
-    print ('Reading trajectory....')
 
     f_in1 = str(options.p)
     f_in2 = str(options.f)
 
-    traj = md.load(f_in2, top=f_in1)
-    topo = traj.topology
-
-    cut = options.c/10.0 # converted to nanometer
-    cutpercent = options.a/100.0
+    cut = options.c / 10.0  # converted to nanometer
+    dcut = options.d / 10.0
+    Kdcut = options.k
+    cutpercent = options.a / 100.0
     nproc = options.n
- 
+    typemat = options.m
+
     f1name = str(options.x)
     f3name = str(options.y)
     f4name = str(options.z)
     f5name = str(options.o)
+    f6name = str(options.w)
 
     f1 = open(f1name, 'w')
-    f2 = open('contact_num_only.dat', 'w')
-    print ('#res1_index   res1_index    res1    res2     n_frames_contact', file = f1)
+    print('#res1_index   res1_index    res1    res2     n_frames_contact', file=f1)
 
-    Norm = traj.n_frames*1.0
-    upto = topo.n_residues
-    n_apart = 1
-    results = find_weight(topo,traj,upto,n_apart,nproc,cut,Norm)
-    cmat = np.zeros([upto,upto])
-    for i in results:
-         for j in i:
-             fract = j[4]/Norm
-             print(j[0],j[1],j[2],j[3],j[4],round(fract,2),file=f1)
-             print(j[0],j[2],j[4],round(fract,2),file=f2)
-             res1_index = int(j[0])
-             res2_index = int(j[2])
-             count = j[4]
-             cmat[res1_index][res2_index] = count
-             cmat[res2_index][res1_index] = count
+    with open(f_in2, 'r') as file:
+        trajs = file.readlines()
+    trajs = [traj.strip() for traj in trajs]
+   
+    cmat1 = None
+    cmat2 = None
+    Norm_Nframestot = 0
+    trajnum = 1
+    for t in trajs:
+        print('Analysing trajectory', trajnum)
+        trajnum += 1
+        traj = md.load(t, top=f_in1)
+        topo = traj.topology
 
-    cmat_fract = cmat/Norm
-    cmat_adj = np.digitize(cmat_fract,bins=[cutpercent])
+        Norm_Nframes = traj.n_frames * 1.0
+        Norm_Nframestot += Norm_Nframes
+        upto = topo.n_residues
+        n_apart = 1
+        results = find_weight(topo, traj, upto, n_apart, nproc, cut, Norm_Nframes, typemat, dcut, Kdcut)
 
-    np.savetxt(f3name,cmat,fmt='%d')
-    np.savetxt(f4name,cmat_fract,fmt='%.2f')
-    np.savetxt(f5name,cmat_adj,fmt='%d')
+        cmat = np.zeros([upto, upto])
+        def process_results(result_set):
+            for i in result_set:
+                for j in i:
+                    fract = j[4] / Norm_Nframes
+                    print(j[0], j[1], j[2], j[3], j[4], round(fract, 2), file=f1)
+                    res1_index = int(j[0])
+                    res2_index = int(j[2])
+                    count = j[4]
+                    cmat[res1_index][res2_index] = count
+                    cmat[res2_index][res1_index] = count
+            return cmat
+
+        if len(results) != 2: # For either 'norm' or 'cont'
+
+            if cmat1 is None:
+                 cmat1 = process_results(results)
+            else:
+                 cmat1 = cmat1 + process_results(results)
+            cmat1_real = cmat1.copy()
+            if cmat2 is None:
+                 cmat2 = process_results(results)
+            else:
+                 cmat2 = cmat2 + process_results(results)
+            cmat2_real =cmat2.copy()
+
+        if len(results) == 2: # For both
+
+            if cmat1 is None:
+                 cmat1 = process_results(results[0])
+            else:
+                 cmat1 = cmat1 + process_results(results[0])
+            cmat1_real = cmat1.copy()
+            if cmat2 is None:
+                 cmat2 = process_results(results[1])
+            else:
+                 cmat2 = cmat2 + process_results(results[1])
+            cmat2_real =cmat2.copy()
+        del traj
+
+    cmat1_fract = cmat1_real / Norm_Nframestot  
+    cmat1_adj = np.digitize(cmat1_fract, bins=[cutpercent])
+    cmat2_fract = cmat2_real / Norm_Nframestot
+    cmat2_adj = np.digitize(cmat2_fract, bins=[cutpercent])
+
+    if typemat == 'norm':
+         np.savetxt(f3name, cmat1_real, fmt='%d')
+         np.savetxt(f4name, cmat1_fract, fmt='%.2f')
+         np.savetxt(f5name, cmat1_adj, fmt='%d')
+
+    if typemat == 'cont':
+         np.savetxt(f6name, cmat1_fract, fmt='%.2f')
+
+    if typemat == 'both':
+         cmat1_fract = cmat1_real / Norm_Nframestot
+         cmat1_adj = np.digitize(cmat1_fract, bins=[cutpercent])
+         np.savetxt(f3name, cmat1_real, fmt='%d')
+         np.savetxt(f4name, cmat1_fract, fmt='%.2f')
+         np.savetxt(f5name, cmat1_adj, fmt='%d')
+
+         cmat2_fract = cmat2_real / Norm_Nframestot
+         np.savetxt(f6name, cmat2_fract, fmt='%.2f')
 
     f1.close()
-    f2.close()
 
 if __name__ == '__main__':
     main()
-
