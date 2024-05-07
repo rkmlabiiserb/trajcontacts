@@ -36,7 +36,7 @@ where 'traj.dat' is a file with a single line containing '3sn6.pdb'.
 
 Please cite the following research when using trajcontacts:
 
-Madhu, Midhun K., Kunal Shewani, and Rajesh K. Murarka. "Biased Signaling in Mutated Variants of β2-Adrenergic Receptor: Insights from Molecular Dynamics Simulations." bioRxiv (2023): 2023-09.
+Madhu, Midhun K., Kunal Shewani, and Rajesh K. Murarka. "Biased Signaling in Mutated Variants of β2-Adrenergic Receptor: Insights from Molecular Dynamics Simulations." Journal of Chemical Information and Modeling 64.2 (2024): 449-469.
 
 **Copyright:**
 
