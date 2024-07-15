@@ -31,10 +31,10 @@ def parse():
                       help="cut-off for percentage of frames for defining contacts [percentage without % symbol] (default: 75)",
                       dest="a", default=75)
     group.add_option("-d", "--dcut-offdist", type="float",
-                      help="maximum heavy atom cut-off distance for calculating contacts in the case of m = 'norm' or 'both' [in angstrom] (default: 8.0)",
+                      help="maximum heavy atom cut-off distance for calculating contacts in the case of -m = 'cont' or 'both' [in angstrom] (default: 8.0)",
                       dest="d", default=8.0)
     group.add_option("-k", "--dcutkval", type="float",
-                      help="Value of function K for d for calculating sigma factor (default: 0.00001; this is prefered)",
+                      help="Value of function K for d for calculating sigma factor (default: 0.00001; this is prefered) in the case of -m = 'cont' or 'both'",
                       dest="k", default=0.00001)
     group.add_option("-c", "--cutfoffdist", type="float",
                       help="heavy atom cut-off distance for calculating contacts [in angstrom] (default: 4.5)",
